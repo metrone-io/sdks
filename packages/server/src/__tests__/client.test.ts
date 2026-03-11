@@ -17,7 +17,7 @@ function createClient(overrides: Record<string, unknown> = {}) {
   const fetch = mockFetch()
   const client = new MetroneServer({
     apiKey: VALID_KEY,
-    endpoint: 'https://test.metrone.io',
+    endpoint: 'https://test.example.com',
     batchSize: 5,
     flushIntervalMs: 0,
     maxRetries: 0,
@@ -91,7 +91,7 @@ describe('MetroneServer', () => {
 
       expect(fetch).toHaveBeenCalledOnce()
       const [url, opts] = fetch.mock.calls[0]
-      expect(url).toBe('https://test.metrone.io/v1/events/batch')
+      expect(url).toBe('https://test.example.com/v1/events/batch')
       expect(opts?.method).toBe('POST')
 
       const body = JSON.parse(opts?.body as string) as unknown[]
@@ -105,7 +105,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch()
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         batchSize: 3,
         flushIntervalMs: 0,
         maxRetries: 0,
@@ -124,7 +124,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch()
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         batchSize: 0,
         flushIntervalMs: 0,
         maxRetries: 0,
@@ -135,7 +135,7 @@ describe('MetroneServer', () => {
       await vi.waitFor(() => expect(fetch).toHaveBeenCalled())
 
       const [url] = fetch.mock.calls[0]
-      expect(url).toBe('https://test.metrone.io/v1/events')
+      expect(url).toBe('https://test.example.com/v1/events')
     })
 
     it('returns zero counts when queue is empty', async () => {
@@ -171,7 +171,7 @@ describe('MetroneServer', () => {
 
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         batchSize: 5,
         flushIntervalMs: 0,
         maxRetries: 3,
@@ -195,7 +195,7 @@ describe('MetroneServer', () => {
 
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         batchSize: 5,
         flushIntervalMs: 0,
         maxRetries: 3,
@@ -227,7 +227,7 @@ describe('MetroneServer', () => {
 
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         batchSize: 5,
         flushIntervalMs: 0,
         maxRetries: 3,
@@ -419,7 +419,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, statsData)
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
@@ -438,7 +438,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, eventsData)
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
@@ -456,7 +456,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, { data: [] })
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
@@ -472,7 +472,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, { channels: [], referrers: [] })
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
@@ -489,7 +489,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, liveData)
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
@@ -506,7 +506,7 @@ describe('MetroneServer', () => {
       const fetch = mockFetch(200, {})
       const client = new MetroneServer({
         apiKey: VALID_KEY,
-        endpoint: 'https://test.metrone.io',
+        endpoint: 'https://test.example.com',
         flushIntervalMs: 0,
         maxRetries: 0,
         fetch,
