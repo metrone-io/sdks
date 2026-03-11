@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrone Analytics - Vanilla JS Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .button {
+            background-color: #4F46E5;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background-color: #4338CA;
+        }
+        .code {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Metrone Analytics - Vanilla JS Example</h1>
+    
+    <p>This example demonstrates how to use Metrone Analytics with vanilla JavaScript.</p>
+    
+    <h2>Installation</h2>
+    <div class="code">
+        npm install @metrone-io/sdk
+    </div>
+    
+    <h2>Usage</h2>
+    <div class="code">
+        import Metrone from '@metrone-io/sdk'
+
+        const analytics = new Metrone({
+          apiKey: 'metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+          endpoint: 'https://api.metrone.io/v1/events'
+        })
+
+        // Track page view
+        analytics.pageview()
+
+        // Track custom event
+        analytics.track('button_click', {
+          button_id: 'example-button'
+        })
+    </div>
+    
+    <h2>Interactive Examples</h2>
+    <p>Click the buttons below to see analytics events in action:</p>
+    
+    <button class="button" onclick="trackButtonClick('example-button-1')">
+        Track Button Click 1
+    </button>
+    
+    <button class="button" onclick="trackButtonClick('example-button-2')">
+        Track Button Click 2
+    </button>
+    
+    <button class="button" onclick="trackConversion()">
+        Track Conversion
+    </button>
+    
+    <button class="button" onclick="trackAICall()">
+        Track AI Call
+    </button>
+    
+    <button class="button" onclick="trackAIChat()">
+        Track AI Chat
+    </button>
+    
+    <h2>React Integration</h2>
+    <p>For React applications, use the separate React package:</p>
+    <div class="code">
+        npm install @metrone-io/react
+
+        import { MetroneProvider, useMetrone } from '@metrone-io/react'
+
+        function App() {
+          return (
+            &lt;MetroneProvider config={{ apiKey: 'metrone_live_xxx' }}&gt;
+              &lt;MyApp /&gt;
+            &lt;/MetroneProvider&gt;
+          )
+        }
+
+        function MyComponent() {
+          const { trackEvent } = useMetrone()
+          
+          return (
+            &lt;button onClick={() => trackEvent('click')}&gt;
+              Track Click
+            &lt;/button&gt;
+          )
+        }
+    </div>
+
+    <script type="module">
+        // Example implementation (replace with actual SDK)
+        function trackButtonClick(buttonId) {
+            console.log('Analytics event:', {
+                event: 'button_click',
+                button_id: buttonId,
+                timestamp: new Date().toISOString()
+            });
+            alert(`Tracked button click: ${buttonId}`);
+        }
+        
+        function trackConversion() {
+            console.log('Analytics event:', {
+                event: 'conversion',
+                conversion_type: 'purchase',
+                value: 99.99,
+                timestamp: new Date().toISOString()
+            });
+            alert('Tracked conversion: $99.99 purchase');
+        }
+        
+        function trackAICall() {
+            console.log('Analytics event:', {
+                event: 'ai_call',
+                call_id: 'call_' + Date.now(),
+                provider: 'openai',
+                duration: 45,
+                intent: 'customer_support',
+                timestamp: new Date().toISOString()
+            });
+            alert('Tracked AI call event');
+        }
+        
+        function trackAIChat() {
+            console.log('Analytics event:', {
+                event: 'ai_chat',
+                session_id: 'session_' + Date.now(),
+                provider: 'openai',
+                message_count: 5,
+                intent: 'product_inquiry',
+                resolved: true,
+                timestamp: new Date().toISOString()
+            });
+            alert('Tracked AI chat event');
+        }
+        
+        // Track page view on load
+        console.log('Analytics event:', {
+            event: 'pageview',
+            url: window.location.pathname,
+            title: document.title,
+            timestamp: new Date().toISOString()
+        });
+    </script>
+</body>
+</html>

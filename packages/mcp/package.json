@@ -1,0 +1,50 @@
+{
+  "name": "@metrone-io/mcp",
+  "version": "1.0.0",
+  "description": "Metrone MCP server — expose analytics to AI agents via Model Context Protocol",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "metrone-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "metrone",
+    "mcp",
+    "model-context-protocol",
+    "analytics",
+    "ai-agents"
+  ],
+  "author": "Metrone",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metrone-io/sdks.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/metrone-io/sdks/issues"
+  },
+  "homepage": "https://metrone.io",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.2"
+  }
+}

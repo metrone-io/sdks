@@ -1,0 +1,31 @@
+{
+  "name": "@metrone-io/sdks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Official Metrone SDKs — analytics for humans and AI agents",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:sdk": "npm run build -w packages/sdk",
+    "build:react": "npm run build -w packages/react",
+    "build:server": "npm run build -w packages/server",
+    "build:mcp": "npm run build -w packages/mcp",
+    "test": "npm run test --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metrone-io/sdks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/metrone-io/sdks/issues"
+  },
+  "homepage": "https://metrone.io",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
