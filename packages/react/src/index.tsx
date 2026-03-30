@@ -4,29 +4,33 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
-import { Metrone, AnalyticsConfig, AnalyticsContextValue, UseAnalyticsReturn, EventData, CampaignData, SessionInfo, DeviceInfo, LocationInfo } from '@metrone-io/sdk'
+import { Metrone, AnalyticsConfig, EventData, CampaignData, SessionInfo, DeviceInfo, LocationInfo } from '@metrone-io/sdk'
 
-// Create analytics context
+interface AnalyticsContextValue {
+  analytics: Metrone | null
+  isInitialized: boolean
+  session: SessionInfo | null
+  device: DeviceInfo | null
+  location: LocationInfo | null
+}
+
 const AnalyticsContext = createContext<AnalyticsContextValue | null>(null)
 
-// Analytics Provider Props
 export interface MetroneProviderProps {
-  /** Analytics configuration */
   config: AnalyticsConfig
-  /** Child components */
   children: ReactNode
-  /** Whether to auto-track route changes */
+  /**
+   * @deprecated The SDK now handles SPA route tracking automatically via
+   * `autoTrackSPA` (default: true). This prop is ignored and will be
+   * removed in a future version.
+   */
   trackRouteChanges?: boolean
-  /** Custom event prefix */
   eventPrefix?: string
 }
 
-// Analytics Provider Component
-export function MetroneProvider({ 
-  config, 
-  children, 
-  trackRouteChanges = true,
-  eventPrefix = ''
+export function MetroneProvider({
+  config,
+  children,
 }: MetroneProviderProps) {
   const [analytics, setAnalytics] = useState<Metrone | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
@@ -34,14 +38,12 @@ export function MetroneProvider({
   const [device, setDevice] = useState<DeviceInfo | null>(null)
   const [location, setLocation] = useState<LocationInfo | null>(null)
 
-  // Initialize analytics
   useEffect(() => {
     try {
       const analyticsInstance = new Metrone(config)
       setAnalytics(analyticsInstance)
       setIsInitialized(true)
 
-      // Set up session info
       const sessionInfo: SessionInfo = {
         sessionId: analyticsInstance.getSessionId(),
         startTime: new Date(),
@@ -52,7 +54,6 @@ export function MetroneProvider({
       }
       setSession(sessionInfo)
 
-      // Set up device info
       const deviceInfo: DeviceInfo = {
         type: analyticsInstance.getScreenSize() as 'mobile' | 'tablet' | 'desktop',
         width: window.screen.width,
@@ -63,111 +64,16 @@ export function MetroneProvider({
       }
       setDevice(deviceInfo)
 
-      // Set up location info (will be populated by API)
-      const locationInfo: LocationInfo = {}
-      setLocation(locationInfo)
+      setLocation({})
 
-      // Track route changes if enabled
-      if (trackRouteChanges) {
-        trackRouteChange()
-      }
-
-      // Set up event listeners
-      setupEventListeners(analyticsInstance)
-
-      // Cleanup on unmount
       return () => {
         analyticsInstance.destroy()
       }
     } catch (error) {
-      console.error('Failed to initialize Metrone Analytics:', error)
+      console.error('[MetroneProvider] Failed to initialize:', error)
     }
-  }, [config, trackRouteChanges])
+  }, [config])
 
-  // Track route changes
-  const trackRouteChange = useCallback(() => {
-    if (!analytics) return
-
-    const handleRouteChange = () => {
-      analytics.pageview()
-      
-      // Update session info
-      setSession(prev => prev ? {
-        ...prev,
-        lastActivity: new Date(),
-        duration: Date.now() - prev.startTime.getTime(),
-        pageViews: prev.pageViews + 1
-      } : null)
-    }
-
-    // Listen for popstate events (back/forward navigation)
-    window.addEventListener('popstate', handleRouteChange)
-
-    // Listen for pushstate/replacestate (programmatic navigation)
-    const originalPushState = history.pushState
-    const originalReplaceState = history.replaceState
-
-    history.pushState = function(...args) {
-      originalPushState.apply(history, args)
-      handleRouteChange()
-    }
-
-    history.replaceState = function(...args) {
-      originalReplaceState.apply(history, args)
-      handleRouteChange()
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange)
-      history.pushState = originalPushState
-      history.replaceState = originalReplaceState
-    }
-  }, [analytics])
-
-  // Set up event listeners
-  const setupEventListeners = useCallback((analyticsInstance: Metrone) => {
-    // Listen for custom analytics events
-    const handleAnalyticsEvent = (event: CustomEvent) => {
-      if (event.type === 'metrone-update') {
-        console.log('📢 SDK update available:', event.detail)
-      } else if (event.type === 'metrone-consent-request') {
-        // Handle consent request
-        const { resolve } = event.detail
-        // You can implement your own consent UI here
-        resolve(true) // Default to accepting consent
-      } else if (event.type === 'metrone-consent-revoked') {
-        console.log('🔒 Consent revoked')
-      } else if (event.type === 'metrone-error') {
-        console.error('Analytics error:', event.detail)
-      } else if (event.type === 'metrone-flush') {
-        console.log('📦 Events flushed:', event.detail.eventCount)
-      } else if (event.type === 'metrone-online') {
-        console.log('🌐 Back online')
-      } else if (event.type === 'metrone-offline') {
-        console.log('📴 Gone offline, queued events:', event.detail.queuedEvents)
-      }
-    }
-
-    window.addEventListener('metrone-update', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-consent-request', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-consent-revoked', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-error', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-flush', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-online', handleAnalyticsEvent as EventListener)
-    window.addEventListener('metrone-offline', handleAnalyticsEvent as EventListener)
-
-    return () => {
-      window.removeEventListener('metrone-update', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-consent-request', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-consent-revoked', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-error', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-flush', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-online', handleAnalyticsEvent as EventListener)
-      window.removeEventListener('metrone-offline', handleAnalyticsEvent as EventListener)
-    }
-  }, [])
-
-  // Context value
   const contextValue: AnalyticsContextValue = {
     analytics,
     isInitialized,
@@ -183,142 +89,93 @@ export function MetroneProvider({
   )
 }
 
-// Hook to use analytics
-export function useMetrone(): UseAnalyticsReturn {
+export interface UseMetroneReturn {
+  analytics: Metrone | null
+  isInitialized: boolean
+  trackPageView: (url?: string, title?: string, metadata?: EventData) => void
+  trackEvent: (eventName: string, data?: EventData) => void
+  trackConversion: (conversionType: string, value?: number, data?: EventData) => void
+  trackInteraction: (action: string, element?: string, data?: EventData) => void
+  trackCampaign: (campaignData: CampaignData) => void
+  trackProductView: (productId: string, productName: string, price?: number, metadata?: EventData) => void
+  trackWhatsAppClick: (productId?: string, productName?: string) => void
+  trackAICall: (data: { call_id: string; provider?: string; duration?: number; intent?: string; transcript_snippet?: string; outcome?: string; metadata?: EventData }) => void
+  trackAIChat: (data: { session_id: string; provider?: string; message_count?: number; intent?: string; resolved?: boolean; duration?: number; metadata?: EventData }) => void
+  trackAIIntent: (data: { intent: string; confidence?: number; source?: 'voice' | 'chat' | 'assistant'; metadata?: EventData }) => void
+  trackAISession: (data: { session_id: string; provider?: string; action: 'start' | 'end' | 'timeout'; duration?: number; metadata?: EventData }) => void
+  flush: () => void
+  hasConsent: () => boolean
+  requestConsent: () => Promise<boolean>
+  revokeConsent: () => void
+}
+
+export function useMetrone(): UseMetroneReturn {
   const context = useContext(AnalyticsContext)
-  
+
   if (!context) {
     throw new Error('useMetrone must be used within a MetroneProvider')
   }
 
   const { analytics, isInitialized } = context
 
-  // Track page view
   const trackPageView = useCallback((url?: string, title?: string, metadata?: EventData) => {
-    if (analytics) {
-      analytics.pageview(url, title, metadata)
-    }
+    analytics?.pageview(url, title, metadata)
   }, [analytics])
 
-  // Track custom event
   const trackEvent = useCallback((eventName: string, data?: EventData) => {
-    if (analytics) {
-      analytics.track(eventName, data)
-    }
+    analytics?.track(eventName, data)
   }, [analytics])
 
-  // Track conversion
   const trackConversion = useCallback((conversionType: string, value?: number, data?: EventData) => {
-    if (analytics) {
-      analytics.conversion(conversionType, value, data)
-    }
+    analytics?.conversion(conversionType, value, data)
   }, [analytics])
 
-  // Track interaction
   const trackInteraction = useCallback((action: string, element?: string, data?: EventData) => {
-    if (analytics) {
-      analytics.interaction(action, element, data)
-    }
+    analytics?.interaction(action, element, data)
   }, [analytics])
 
-  // Track campaign
   const trackCampaign = useCallback((campaignData: CampaignData) => {
-    if (analytics) {
-      analytics.campaign(campaignData)
-    }
+    analytics?.campaign(campaignData)
   }, [analytics])
 
-  // Track product view
   const trackProductView = useCallback((productId: string, productName: string, price?: number, metadata?: EventData) => {
-    if (analytics) {
-      analytics.productView(productId, productName, price, metadata)
-    }
+    analytics?.productView(productId, productName, price, metadata)
   }, [analytics])
 
-  // Track WhatsApp click
   const trackWhatsAppClick = useCallback((productId?: string, productName?: string) => {
-    if (analytics) {
-      analytics.whatsAppClick(productId, productName)
-    }
+    analytics?.whatsAppClick(productId, productName)
   }, [analytics])
 
-  // Track AI call
-  const trackAICall = useCallback((data: {
-    call_id: string
-    provider?: string
-    duration?: number
-    intent?: string
-    transcript_snippet?: string
-    outcome?: string
-    metadata?: EventData
-  }) => {
-    if (analytics) {
-      analytics.trackAICall(data)
-    }
+  const trackAICall = useCallback((data: Parameters<Metrone['trackAICall']>[0]) => {
+    analytics?.trackAICall(data)
   }, [analytics])
 
-  // Track AI chat
-  const trackAIChat = useCallback((data: {
-    session_id: string
-    provider?: string
-    message_count?: number
-    intent?: string
-    resolved?: boolean
-    duration?: number
-    metadata?: EventData
-  }) => {
-    if (analytics) {
-      analytics.trackAIChat(data)
-    }
+  const trackAIChat = useCallback((data: Parameters<Metrone['trackAIChat']>[0]) => {
+    analytics?.trackAIChat(data)
   }, [analytics])
 
-  // Track AI intent
-  const trackAIIntent = useCallback((data: {
-    intent: string
-    confidence?: number
-    source?: 'voice' | 'chat' | 'assistant'
-    metadata?: EventData
-  }) => {
-    if (analytics) {
-      analytics.trackAIIntent(data)
-    }
+  const trackAIIntent = useCallback((data: Parameters<Metrone['trackAIIntent']>[0]) => {
+    analytics?.trackAIIntent(data)
   }, [analytics])
 
-  // Track AI session
-  const trackAISession = useCallback((data: {
-    session_id: string
-    provider?: string
-    action: 'start' | 'end' | 'timeout'
-    duration?: number
-    metadata?: EventData
-  }) => {
-    if (analytics) {
-      analytics.trackAISession(data)
-    }
+  const trackAISession = useCallback((data: Parameters<Metrone['trackAISession']>[0]) => {
+    analytics?.trackAISession(data)
   }, [analytics])
 
-  // Flush events
   const flush = useCallback(() => {
-    if (analytics) {
-      analytics.flush()
-    }
+    analytics?.flush()
   }, [analytics])
 
-  // Check consent
   const hasConsent = useCallback(() => {
     return analytics ? analytics.hasConsent() : false
   }, [analytics])
 
-  // Request consent
   const requestConsent = useCallback(async () => {
     return analytics ? analytics.requestConsent() : false
   }, [analytics])
 
-  // Revoke consent
   const revokeConsent = useCallback(() => {
-    if (analytics) {
-      analytics.revokeConsent()
-    }
+    analytics?.revokeConsent()
   }, [analytics])
 
   return {
@@ -342,59 +199,22 @@ export function useMetrone(): UseAnalyticsReturn {
   }
 }
 
-// Hook for analytics with options
-export function useAnalytics(options: {
-  autoTrack?: boolean
-  trackRouteChanges?: boolean
-  eventPrefix?: string
-} = {}): UseAnalyticsReturn {
-  const analytics = useMetrone()
-  
-  // Auto-track page views if enabled
-  useEffect(() => {
-    if (options.autoTrack && analytics.isInitialized) {
-      analytics.trackPageView()
-    }
-  }, [options.autoTrack, analytics.isInitialized])
-
-  // Track route changes if enabled
-  useEffect(() => {
-    if (options.trackRouteChanges && analytics.isInitialized) {
-      const handleRouteChange = () => {
-        analytics.trackPageView()
-      }
-
-      window.addEventListener('popstate', handleRouteChange)
-      
-      return () => {
-        window.removeEventListener('popstate', handleRouteChange)
-      }
-    }
-  }, [options.trackRouteChanges, analytics.isInitialized])
-
-  return analytics
-}
-
-// Higher-order component for analytics
 export function withMetrone<P extends object>(
   Component: React.ComponentType<P>,
   options: {
     trackPageViews?: boolean
     trackInteractions?: boolean
-    eventPrefix?: string
   } = {}
 ) {
   return function MetroneWrappedComponent(props: P) {
     const analytics = useMetrone()
 
-    // Track page views if enabled
     useEffect(() => {
       if (options.trackPageViews && analytics.isInitialized) {
         analytics.trackPageView()
       }
     }, [options.trackPageViews, analytics.isInitialized])
 
-    // Track interactions if enabled
     useEffect(() => {
       if (options.trackInteractions && analytics.isInitialized) {
         const handleClick = (event: MouseEvent) => {
@@ -409,10 +229,7 @@ export function withMetrone<P extends object>(
         }
 
         document.addEventListener('click', handleClick)
-        
-        return () => {
-          document.removeEventListener('click', handleClick)
-        }
+        return () => document.removeEventListener('click', handleClick)
       }
     }, [options.trackInteractions, analytics.isInitialized])
 
@@ -420,34 +237,24 @@ export function withMetrone<P extends object>(
   }
 }
 
-// Utility functions
 function getBrowserName(): string {
-  const userAgent = navigator.userAgent
-  
-  if (userAgent.includes('Chrome')) return 'Chrome'
-  if (userAgent.includes('Firefox')) return 'Firefox'
-  if (userAgent.includes('Safari')) return 'Safari'
-  if (userAgent.includes('Edge')) return 'Edge'
-  if (userAgent.includes('Opera')) return 'Opera'
-  
+  const ua = navigator.userAgent
+  if (ua.includes('Chrome')) return 'Chrome'
+  if (ua.includes('Firefox')) return 'Firefox'
+  if (ua.includes('Safari')) return 'Safari'
+  if (ua.includes('Edge')) return 'Edge'
+  if (ua.includes('Opera')) return 'Opera'
   return 'Unknown'
 }
 
 function getOSName(): string {
-  const userAgent = navigator.userAgent
-  
-  if (userAgent.includes('Windows')) return 'Windows'
-  if (userAgent.includes('Mac')) return 'macOS'
-  if (userAgent.includes('Linux')) return 'Linux'
-  if (userAgent.includes('Android')) return 'Android'
-  if (userAgent.includes('iOS')) return 'iOS'
-  
+  const ua = navigator.userAgent
+  if (ua.includes('Windows')) return 'Windows'
+  if (ua.includes('Mac')) return 'macOS'
+  if (ua.includes('Linux')) return 'Linux'
+  if (ua.includes('Android')) return 'Android'
+  if (ua.includes('iOS')) return 'iOS'
   return 'Unknown'
 }
 
-// Export types
-export type {
-  MetroneProviderProps,
-  AnalyticsContextValue,
-  UseAnalyticsReturn
-} from '@metrone-io/sdk'
+export type { MetroneProviderProps, UseMetroneReturn, EventData, CampaignData, AnalyticsConfig }

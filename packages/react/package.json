@@ -1,6 +1,6 @@
 {
   "name": "@metrone-io/react",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Metrone React integration - Privacy-first analytics for React",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -44,7 +44,7 @@
     "node": ">=16.0.0"
   },
   "peerDependencies": {
-    "@metrone-io/sdk": "^1.0.0",
+    "@metrone-io/sdk": "^1.4.0",
     "react": ">=16.8.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 {
   "name": "@metrone-io/mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Metrone MCP server — expose analytics to AI agents via Model Context Protocol",
   "type": "module",
   "main": "./dist/index.js",
