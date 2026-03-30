@@ -17,12 +17,15 @@ export class Metrone {
   private trackingActive: boolean = false
   private eventQueue: any[] = []
   private isOnline: boolean = true
-  private version: string = '1.3.0'
+  private version: string = '1.4.1'
   private updateCheckInterval: number | null = null
   private flushTimerId: number | null = null
   private boundVisibilityHandler: (() => void) | null = null
   private boundBeforeUnloadHandler: (() => void) | null = null
   private lastTrackedPath: string = ''
+  private eventCounter: number = 0
+  private boundClickHandler: ((e: MouseEvent) => void) | null = null
+  private boundDataTrackHandler: ((e: MouseEvent) => void) | null = null
 
   constructor(config: AnalyticsConfig | string) {
     const resolved: AnalyticsConfig = typeof config === 'string' ? { apiKey: config } : config
@@ -31,7 +34,8 @@ export class Metrone {
       endpoint: 'https://api.metrone.io/v1/events',
       debug: false,
       autoTrack: true,
-      autoTrackSPA: false,
+      autoTrackSPA: true,
+      autoTrackClicks: true,
       autoUpdate: false,
       batchSize: 10,
       flushInterval: 5000,
@@ -103,6 +107,10 @@ export class Metrone {
       this.setupSPATracking()
     }
 
+    if (this.config.autoTrackClicks) {
+      this.setupClickTracking()
+    }
+
     if (this.config.batchSize && this.config.batchSize > 1) {
       this.setupBatchProcessing()
     }
@@ -154,7 +162,12 @@ export class Metrone {
     const { source, channel, ai_provider, ai_call_id, ai_session_id,
             ai_intent, ai_duration_sec, utm_source, utm_medium, utm_campaign,
             utm_term, utm_content, page_path, page_title, page_url: dataPageUrl,
-            referrer: dataReferrer, event_name, ...rest } = (data ?? {}) as Record<string, unknown>
+            referrer: dataReferrer, event_name, properties, ...rest } = (data ?? {}) as Record<string, unknown>
+
+    const mergedProps = properties && typeof properties === 'object'
+      ? { ...(properties as Record<string, unknown>), ...rest }
+      : rest
+    const finalProps = Object.keys(mergedProps).length > 0 ? mergedProps : undefined
 
     const eventData = {
       event_type:      eventName,
@@ -166,6 +179,7 @@ export class Metrone {
       session_id:      this.sessionId,
       sdk_version:     this.version,
       timestamp:       new Date().toISOString(),
+      idempotency_key: this.generateIdempotencyKey(),
       source:          source as string | undefined,
       channel:         channel as string | undefined,
       ai_provider:     ai_provider as string | undefined,
@@ -178,7 +192,7 @@ export class Metrone {
       utm_campaign:    utm_campaign as string | undefined,
       utm_term:        utm_term as string | undefined,
       utm_content:     utm_content as string | undefined,
-      properties:      Object.keys(rest).length > 0 ? rest : undefined,
+      properties:      finalProps,
     }
 
     this.sendEvent(eventData)
@@ -580,6 +594,62 @@ export class Metrone {
     window.addEventListener('popstate', onRouteChange)
   }
 
+  private static readonly DOWNLOAD_RE = /\.(pdf|zip|docx?|xlsx?|csv|pptx?|mp[34]|mov|avi|dmg|exe|rar|7z)$/i
+
+  /**
+   * Auto-track outbound links, tel:, mailto:, and file downloads.
+   * Mirrors the click-tracking logic in the lightweight m.js tracker
+   * so npm/React SDK users get the same data automatically.
+   */
+  private setupClickTracking(): void {
+    this.boundClickHandler = (e: MouseEvent) => {
+      let anchor = e.target as HTMLElement | null
+      while (anchor && anchor.tagName !== 'A') anchor = anchor.parentElement
+      if (!anchor) return
+      if (anchor.getAttribute('data-track')) return
+
+      const a = anchor as HTMLAnchorElement
+      const href = a.getAttribute('href')
+      if (!href) return
+
+      const isTel = href.startsWith('tel:')
+      const isMail = href.startsWith('mailto:')
+      let isExt = false
+      try { isExt = !!a.hostname && a.hostname !== location.hostname } catch { /* cross-origin */ }
+      const isDl = Metrone.DOWNLOAD_RE.test(href)
+
+      if (!isTel && !isMail && !isExt && !isDl) return
+
+      const clickType = isTel ? 'phone' : isMail ? 'email' : isDl ? 'download' : 'outbound'
+      const text = (a.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+
+      this.track('click', {
+        event_name: clickType,
+        properties: { url: href, text, click_type: clickType },
+      })
+    }
+
+    document.addEventListener('click', this.boundClickHandler, true)
+
+    this.boundDataTrackHandler = (e: MouseEvent) => {
+      let el = e.target as HTMLElement | null
+      while (el && !el.getAttribute('data-track')) el = el.parentElement
+      if (!el) return
+
+      const name = el.getAttribute('data-track')
+      if (!name) return
+
+      const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+
+      this.track('click', {
+        event_name: name,
+        properties: { click_type: 'tracked', url: (el as HTMLAnchorElement).href || null, text },
+      })
+    }
+
+    document.addEventListener('click', this.boundDataTrackHandler, true)
+  }
+
   /**
    * Check for SDK updates (only relevant for script-tag installations).
    */
@@ -698,6 +768,10 @@ export class Metrone {
     return `sess_${timestamp}_${random}`
   }
 
+  private generateIdempotencyKey(): string {
+    return `${this.sessionId}_${++this.eventCounter}_${Date.now().toString(36)}`
+  }
+
   private isDoNotTrackEnabled(): boolean {
     return navigator.doNotTrack === '1' ||
            navigator.doNotTrack === 'yes' ||
@@ -774,6 +848,12 @@ export class Metrone {
     }
     if (this.boundBeforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.boundBeforeUnloadHandler)
+    }
+    if (this.boundClickHandler) {
+      document.removeEventListener('click', this.boundClickHandler, true)
+    }
+    if (this.boundDataTrackHandler) {
+      document.removeEventListener('click', this.boundDataTrackHandler, true)
     }
 
     this.beaconFlush()

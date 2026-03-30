@@ -16,8 +16,10 @@ export interface AnalyticsConfig {
   debug?: boolean
   /** Automatically track initial page view (default: true) */
   autoTrack?: boolean
-  /** Automatically track SPA route changes via History API (default: false) */
+  /** Automatically track SPA route changes via History API (default: true) */
   autoTrackSPA?: boolean
+  /** Automatically track outbound link clicks, tel:, mailto:, and file downloads (default: true) */
+  autoTrackClicks?: boolean
   /** Automatically update SDK — only for script-tag installations (default: false) */
   autoUpdate?: boolean
   /** Batch size for event sending (default: 10) */
@@ -390,64 +392,103 @@ export interface AnalyticsSDK {
 
   /** Explicitly start tracking (called automatically unless blocked by DNT/consent) */
   start(): void
-  
+
   /** Track a page view */
   pageview(url?: string, title?: string, metadata?: EventData): void
-  
+
   /** Track a custom event */
   track(eventName: string, data?: EventData): void
-  
+
   /** Track a conversion event */
   conversion(conversionType: string, value?: number, data?: EventData): void
-  
+
   /** Track user interaction */
   interaction(action: string, element?: string, data?: EventData): void
-  
+
   /** Track campaign events */
   campaign(campaignData: CampaignData): void
-  
+
   /** Track campaign with specific event */
   trackCampaign(eventName: string, campaignData: CampaignData, eventData?: EventData): void
-  
+
   /** Track product view */
   productView(productId: string, productName: string, price?: number, metadata?: EventData): void
-  
+
   /** Track WhatsApp click */
   whatsAppClick(productId?: string, productName?: string): void
-  
+
+  /** Track an AI voice call */
+  trackAICall(data: {
+    call_id: string
+    provider?: string
+    duration?: number
+    intent?: string
+    transcript_snippet?: string
+    outcome?: string
+    metadata?: EventData
+  }): void
+
+  /** Track an AI chat interaction */
+  trackAIChat(data: {
+    session_id: string
+    provider?: string
+    message_count?: number
+    intent?: string
+    resolved?: boolean
+    duration?: number
+    metadata?: EventData
+  }): void
+
+  /** Track an AI intent detection */
+  trackAIIntent(data: {
+    intent: string
+    confidence?: number
+    source?: 'voice' | 'chat' | 'assistant'
+    metadata?: EventData
+  }): void
+
+  /** Track an AI session lifecycle event */
+  trackAISession(data: {
+    session_id: string
+    provider?: string
+    action: 'start' | 'end' | 'timeout'
+    duration?: number
+    metadata?: EventData
+  }): void
+
   /** Flush pending events */
   flush(): void
-  
+
   /** Destroy SDK instance and clean up event listeners */
   destroy(): void
-  
+
   /** Get current version */
   getVersion(): string
-  
+
   /** Get session ID */
   getSessionId(): string
-  
+
   /** Get configuration */
   getConfig(): AnalyticsConfig
-  
+
   /** Check for updates (script-tag installations only) */
   checkForUpdates(): Promise<UpdateInfo>
-  
+
   /** Check if user has given consent */
   hasConsent(): boolean
-  
+
   /** Request user consent */
   requestConsent(): Promise<boolean>
-  
+
   /** Revoke user consent */
   revokeConsent(): void
-  
+
   /** Check if running on mobile device */
   isMobile(): boolean
-  
+
   /** Get screen size */
   getScreenSize(): string
-  
+
   /** Anonymize data */
   anonymize(data: string): string
 }

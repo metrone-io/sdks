@@ -1,6 +1,6 @@
 {
   "name": "@metrone-io/sdk",
-  "version": "1.3.0",
+  "version": "1.4.1",
   "description": "Metrone - Privacy-first analytics SDK with retry logic and AI tracking",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

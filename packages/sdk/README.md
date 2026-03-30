@@ -22,7 +22,7 @@ const analytics = new Metrone({
 
 analytics.pageview()
 analytics.track('button_click', { button_id: 'cta' })
-analytics.trackConversion('purchase', 49.99)
+analytics.conversion('purchase', 49.99)
 ```
 
 ### Script tag
@@ -37,13 +37,33 @@ analytics.trackConversion('purchase', 49.99)
 </script>
 ```
 
+### AI Tracking
+
+```javascript
+analytics.trackAICall({ call_id: 'call_123', provider: 'vapi', duration: 45 })
+analytics.trackAIChat({ session_id: 'sess_456', provider: 'intercom', message_count: 8 })
+analytics.trackAIIntent({ intent: 'book_appointment', confidence: 0.92, source: 'voice' })
+analytics.trackAISession({ session_id: 'sess_456', action: 'end', duration: 120 })
+```
+
+### Zero-Code Click Tracking
+
+```html
+<button data-track="cta_hero">Get Started</button>
+<a href="/pricing" data-track="nav_pricing">Pricing</a>
+```
+
 ## Features
 
 - Cookie-free, GDPR-compliant
 - Automatic SPA route tracking
-- Event batching and retry logic
+- Automatic outbound link, tel:, mailto:, and download click tracking
+- Zero-code click tracking via `data-track` attribute
+- AI voice call, chat, intent, and session tracking
+- Event batching with sendBeacon flush on page unload
+- Retry logic with exponential backoff
+- Idempotency keys to prevent duplicate events
 - DNT and consent mode support
-- AI interaction tracking
 - UMD + ESM builds
 
 ## Documentation
