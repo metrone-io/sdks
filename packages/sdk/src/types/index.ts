@@ -532,6 +532,14 @@ export interface UseAnalyticsReturn {
   trackProductView: (productId: string, productName: string, price?: number, metadata?: EventData) => void
   /** Track WhatsApp click */
   trackWhatsAppClick: (productId?: string, productName?: string) => void
+  /** Track AI voice call */
+  trackAICall: (data: { call_id: string; provider?: string; duration?: number; intent?: string; transcript_snippet?: string; outcome?: string; metadata?: EventData }) => void
+  /** Track AI chat interaction */
+  trackAIChat: (data: { session_id: string; provider?: string; message_count?: number; intent?: string; resolved?: boolean; duration?: number; metadata?: EventData }) => void
+  /** Track AI intent detection */
+  trackAIIntent: (data: { intent: string; confidence?: number; source?: 'voice' | 'chat' | 'assistant'; metadata?: EventData }) => void
+  /** Track AI session lifecycle */
+  trackAISession: (data: { session_id: string; provider?: string; action: 'start' | 'end' | 'timeout'; duration?: number; metadata?: EventData }) => void
   /** Flush events */
   flush: () => void
   /** Check consent */

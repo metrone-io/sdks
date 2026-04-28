@@ -81,3 +81,18 @@ export class MetroneServerError extends MetroneError {
     this.name = 'MetroneServerError'
   }
 }
+
+/**
+ * 4xx response that isn't one of the more specific subclasses (auth, quota,
+ * validation, rate-limit). Always permanent — re-sending the same payload
+ * will produce the same error, so callers must NOT requeue events that
+ * triggered it. This breaks the retry-storm pattern where a permanent server
+ * rejection (e.g. `BATCH_ALL_INVALID`) used to be re-queued every flush
+ * interval forever.
+ */
+export class MetroneClientError extends MetroneError {
+  constructor(status: number, message = 'Request rejected by server') {
+    super('CLIENT_ERROR', message, status, false)
+    this.name = 'MetroneClientError'
+  }
+}

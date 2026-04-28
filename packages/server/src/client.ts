@@ -35,7 +35,13 @@ import type {
   LiveResponse,
   ApiResponse,
 } from './types.js'
-import { MetroneConfigError, MetroneValidationError } from './errors.js'
+import {
+  MetroneConfigError,
+  MetroneValidationError,
+  MetroneClientError,
+  MetroneAuthError,
+  MetroneError,
+} from './errors.js'
 import { httpPost, httpGet, withRetry } from './http.js'
 
 const API_KEY_PATTERN = /^(metrone_(live|test)_|mk_(live|test)_)[a-f0-9]{32}$/
@@ -315,13 +321,38 @@ export class MetroneServer {
 
       return { sent: accepted, failed: batch.length - accepted, errors: [] }
     } catch (err) {
+      // Permanent failures (auth, validation, other 4xx) MUST NOT be
+      // re-queued — re-sending the same payload will produce the same error,
+      // turning every flushIntervalMs tick into a retry storm. Drop the
+      // events and surface the failure to the caller instead.
+      const isPermanent =
+        err instanceof MetroneAuthError ||
+        err instanceof MetroneClientError ||
+        (err instanceof MetroneError && err.retryable === false)
+
+      if (isPermanent) {
+        if (this.config.debug) {
+          console.error(
+            `[metrone] Dropping ${batch.length} events — server rejected them permanently:`,
+            err instanceof Error ? err.message : err,
+          )
+        }
+        return {
+          sent: 0,
+          failed: batch.length,
+          errors: [{ index: -1, error: err instanceof Error ? err.message : String(err) }],
+        }
+      }
+
+      // Transient failures (network, timeout, 5xx, 429 after retries) — keep
+      // events for the next flush attempt.
       this.queue.unshift(...batch)
       if (this.queue.length > this.config.maxQueueSize) {
         this.queue.length = this.config.maxQueueSize
       }
 
       if (this.config.debug) {
-        console.error('[metrone] Flush failed, re-queued:', err)
+        console.error('[metrone] Flush failed (transient), re-queued:', err)
       }
 
       return {

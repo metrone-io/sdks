@@ -2,7 +2,7 @@
 
 Privacy-first browser analytics SDK for [Metrone](https://metrone.io).
 
-Lightweight, cookie-free tracking with automatic pageviews, custom events, conversions, AI interaction tracking, batching, retries, and DNT/consent support.
+Lightweight tracking with automatic pageviews, custom events, conversions, AI interaction tracking, batching, retries, and DNT/consent support. No HTTP cookies — uses `sessionStorage` for session continuity and optionally reads `localStorage` for consent state.
 
 ## Install
 
@@ -13,7 +13,7 @@ npm install @metrone-io/sdk
 ## Usage
 
 ```javascript
-import Metrone from '@metrone-io/sdk'
+import { Metrone } from '@metrone-io/sdk'
 
 const analytics = new Metrone({
   apiKey: 'metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -30,7 +30,7 @@ analytics.conversion('purchase', 49.99)
 ```html
 <script src="https://your-domain.com/js/metrone.js"></script>
 <script>
-  Metrone.init({
+  var analytics = new Metrone({
     apiKey: 'metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     endpoint: '/api/analytics/events'
   })
@@ -55,7 +55,7 @@ analytics.trackAISession({ session_id: 'sess_456', action: 'end', duration: 120 
 
 ## Features
 
-- Cookie-free, GDPR-compliant
+- No HTTP cookies — uses sessionStorage for sessions, no cross-site tracking
 - Automatic SPA route tracking
 - Automatic outbound link, tel:, mailto:, and download click tracking
 - Zero-code click tracking via `data-track` attribute
@@ -64,7 +64,7 @@ analytics.trackAISession({ session_id: 'sess_456', action: 'end', duration: 120 
 - Retry logic with exponential backoff
 - Idempotency keys to prevent duplicate events
 - DNT and consent mode support
-- UMD + ESM builds
+- CJS + ESM + IIFE builds
 
 ## Documentation
 

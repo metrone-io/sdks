@@ -1,6 +1,6 @@
 {
   "name": "@metrone-io/server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Metrone server-side SDK for Node.js, Deno, Bun, and edge runtimes",
   "type": "module",
   "main": "./dist/index.cjs",

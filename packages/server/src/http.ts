@@ -13,6 +13,7 @@ import {
   MetroneAuthError,
   MetroneRateLimitError,
   MetroneServerError,
+  MetroneClientError,
 } from './errors.js'
 
 export async function httpPost(
@@ -54,7 +55,7 @@ async function httpRequest(
 
   const headers: Record<string, string> = {
     'X-Api-Key': config.apiKey,
-    'User-Agent': 'metrone-server-sdk/1.0.0',
+    'User-Agent': 'metrone-server-sdk/1.0.2',
     ...extraHeaders,
   }
 
@@ -102,6 +103,12 @@ async function httpRequest(
       throw new MetroneRateLimitError(retryMs)
     }
     if (response.status >= 500) throw new MetroneServerError(response.status, errMsg)
+    // Any other 4xx (validation failure, quota exceeded as 4xx, etc.) is a
+    // permanent rejection. Throw a typed error so `withRetry` doesn't loop
+    // and `flush()` knows to drop the events instead of re-queueing them.
+    if (response.status >= 400 && response.status < 500) {
+      throw new MetroneClientError(response.status, errMsg)
+    }
 
     return {
       ok: false,
@@ -114,6 +121,7 @@ async function httpRequest(
     if (err instanceof MetroneAuthError) throw err
     if (err instanceof MetroneRateLimitError) throw err
     if (err instanceof MetroneServerError) throw err
+    if (err instanceof MetroneClientError) throw err
 
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new MetroneTimeoutError(config.timeoutMs)

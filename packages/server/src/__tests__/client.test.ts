@@ -209,6 +209,85 @@ describe('MetroneServer', () => {
       expect(fetch).toHaveBeenCalledOnce()
     })
 
+    it('drops events on 400 (no retry storm — events must NOT be re-queued)', async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: 'BATCH_ALL_INVALID' } }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      const client = new MetroneServer({
+        apiKey: VALID_KEY,
+        endpoint: 'https://test.example.com',
+        batchSize: 5,
+        flushIntervalMs: 0,
+        maxRetries: 3,
+        retryBaseMs: 1,
+        fetch,
+      })
+
+      client.track('bad_event_1')
+      client.track('bad_event_2')
+      const result = await client.flush()
+
+      expect(result.sent).toBe(0)
+      expect(result.failed).toBe(2)
+      expect(result.errors.length).toBe(1)
+      expect(client.queueSize).toBe(0)
+
+      await client.flush()
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('drops events on 401 auth failure (does not loop forever on bad keys)', async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Invalid API key' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      const client = new MetroneServer({
+        apiKey: VALID_KEY,
+        endpoint: 'https://test.example.com',
+        batchSize: 5,
+        flushIntervalMs: 0,
+        maxRetries: 0,
+        fetch,
+      })
+
+      client.track('event_with_bad_key')
+      const result = await client.flush()
+
+      expect(result.sent).toBe(0)
+      expect(result.failed).toBe(1)
+      expect(client.queueSize).toBe(0)
+    })
+
+    it('re-queues events on transient 5xx after retries exhausted', async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      const client = new MetroneServer({
+        apiKey: VALID_KEY,
+        endpoint: 'https://test.example.com',
+        batchSize: 5,
+        flushIntervalMs: 0,
+        maxRetries: 1,
+        retryBaseMs: 1,
+        fetch,
+      })
+
+      client.track('transient_event')
+      const result = await client.flush()
+
+      expect(result.sent).toBe(0)
+      expect(result.failed).toBe(1)
+      expect(client.queueSize).toBe(1)
+    })
+
     it('retries on 429 rate limit', async () => {
       let callCount = 0
       const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => {

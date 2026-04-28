@@ -10,6 +10,27 @@ export type { AnalyticsConfig, EventData, CampaignData, UpdateInfo }
 const MAX_RETRIES = 3
 const INITIAL_RETRY_DELAY_MS = 1000
 
+/**
+ * Thrown by sendRequestWithRetry when the server returned a non-retryable
+ * 4xx (anything other than 429). Permanent failures must NEVER be re-queued
+ * — doing so would cause an infinite retry storm every flushInterval, which
+ * is what visitors with skewed clocks (or any malformed payload) used to
+ * trigger before the server was patched to tolerate clock drift.
+ */
+class PermanentRequestError extends Error {
+  readonly status: number
+  readonly permanent = true
+  constructor(status: number, statusText: string) {
+    super(`${status} ${statusText}`)
+    this.name = 'PermanentRequestError'
+    this.status = status
+  }
+}
+
+function isPermanentError(err: unknown): err is PermanentRequestError {
+  return !!err && typeof err === 'object' && (err as { permanent?: boolean }).permanent === true
+}
+
 export class Metrone {
   private config: AnalyticsConfig
   private sessionId: string
@@ -17,7 +38,7 @@ export class Metrone {
   private trackingActive: boolean = false
   private eventQueue: any[] = []
   private isOnline: boolean = true
-  private version: string = '1.4.1'
+  private version: string = '1.4.2'
   private updateCheckInterval: number | null = null
   private flushTimerId: number | null = null
   private boundVisibilityHandler: (() => void) | null = null
@@ -26,6 +47,11 @@ export class Metrone {
   private eventCounter: number = 0
   private boundClickHandler: ((e: MouseEvent) => void) | null = null
   private boundDataTrackHandler: ((e: MouseEvent) => void) | null = null
+  private boundOnlineHandler: (() => void) | null = null
+  private boundOfflineHandler: (() => void) | null = null
+  private origPushState: typeof history.pushState | null = null
+  private origReplaceState: typeof history.replaceState | null = null
+  private boundPopstateHandler: (() => void) | null = null
 
   constructor(config: AnalyticsConfig | string) {
     const resolved: AnalyticsConfig = typeof config === 'string' ? { apiKey: config } : config
@@ -139,12 +165,15 @@ export class Metrone {
   pageview(url?: string, title?: string, metadata?: EventData): void {
     if (!this.isInitialized || !this.trackingActive) return
 
+    const utms = this.extractUTMParams()
+
     this.track('pageview', {
       page_url:   url || window.location.href,
       page_path:  window.location.pathname,
       page_title: title || document.title,
       referrer:   document.referrer,
       source:     'web',
+      ...utms,
       ...metadata
     })
   }
@@ -363,6 +392,13 @@ export class Metrone {
       try {
         await this.sendRequestWithRetry(this.config.endpoint!, requestData)
       } catch (error) {
+        // Permanent (4xx) failures must be dropped, not queued. Otherwise
+        // the next flush/processQueue tick will resend the same broken
+        // payload and 4xx again, creating an infinite loop.
+        if (isPermanentError(error)) {
+          console.warn(`[Metrone] Dropping event after ${error.status} response — payload rejected by server.`)
+          return
+        }
         console.warn('[Metrone] Failed to send event:', (error as Error).message)
         this.queueEvent(requestData)
       }
@@ -381,9 +417,11 @@ export class Metrone {
           return
         }
 
-        // Don't retry client errors (4xx) except 429 (rate limited)
+        // Don't retry client errors (4xx) except 429 (rate limited).
+        // Use a tagged error so callers can drop the events instead of
+        // re-queueing them.
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          throw new Error(`${response.status} ${response.statusText}`)
+          throw new PermanentRequestError(response.status, response.statusText)
         }
 
         // Retryable error (5xx or 429)
@@ -395,6 +433,7 @@ export class Metrone {
 
         throw new Error(`${response.status} ${response.statusText} after ${retries + 1} attempts`)
       } catch (error) {
+        if (isPermanentError(error)) throw error
         if (attempt < retries && this.isNetworkError(error)) {
           const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt)
           await this.sleep(delay)
@@ -462,10 +501,18 @@ export class Metrone {
         console.log(`[Metrone] Batch sent: ${batch.length} events`)
       }
     } catch (error) {
+      // Permanent (4xx) failures: drop the batch. Re-queueing would cause
+      // the same payload to be re-sent every flushInterval forever — exactly
+      // the retry-storm bug we hit when a customer's clock-skewed events
+      // were 400'd by the server.
+      if (isPermanentError(error)) {
+        console.warn(`[Metrone] Dropping ${batch.length} events after ${error.status} response — payload rejected by server.`)
+        return
+      }
       console.warn('[Metrone] Failed to send batch:', (error as Error).message)
-      // Restore events to front of queue on any failure (not just offline)
+      // Transient failures (5xx, 429, network) — keep events for the next
+      // flush attempt.
       this.eventQueue.unshift(...batch)
-      // Trim to max queue size
       if (this.eventQueue.length > (this.config.maxQueueSize || 100)) {
         this.eventQueue = this.eventQueue.slice(0, this.config.maxQueueSize || 100)
       }
@@ -506,39 +553,49 @@ export class Metrone {
     this.eventQueue = []
 
     let sent = 0
+    let dropped = 0
     for (const event of queue) {
       try {
         await this.sendRequestWithRetry(this.config.endpoint!, event, 1)
         sent++
-      } catch {
-        // Failed even after retry — re-queue and stop processing
-        // to avoid hammering a down server
+      } catch (error) {
+        if (isPermanentError(error)) {
+          // 4xx — payload is permanently bad. Drop instead of re-queueing
+          // to prevent an infinite retry loop on every online/offline cycle.
+          dropped++
+          continue
+        }
+        // Transient failure — keep the event for the next attempt.
         this.eventQueue.push(event)
       }
     }
 
     if (this.config.debug) {
-      console.log(`[Metrone] Processed queue: ${sent}/${queue.length} sent`)
+      const droppedMsg = dropped > 0 ? `, dropped: ${dropped}` : ''
+      console.log(`[Metrone] Processed queue: ${sent}/${queue.length} sent${droppedMsg}`)
     }
   }
 
   private setupOnlineDetection(): void {
     this.isOnline = navigator.onLine
 
-    window.addEventListener('online', () => {
+    this.boundOnlineHandler = () => {
       this.isOnline = true
       if (this.config.debug) {
         console.log('[Metrone] Back online, processing queue')
       }
       this.processQueue()
-    })
+    }
 
-    window.addEventListener('offline', () => {
+    this.boundOfflineHandler = () => {
       this.isOnline = false
       if (this.config.debug) {
         console.log('[Metrone] Gone offline, queuing events')
       }
-    })
+    }
+
+    window.addEventListener('online', this.boundOnlineHandler)
+    window.addEventListener('offline', this.boundOfflineHandler)
   }
 
   private setupBatchProcessing(): void {
@@ -570,8 +627,11 @@ export class Metrone {
    * Auto-track SPA route changes via History API and popstate.
    */
   private setupSPATracking(): void {
-    const origPushState = history.pushState.bind(history)
-    const origReplaceState = history.replaceState.bind(history)
+    this.origPushState = history.pushState
+    this.origReplaceState = history.replaceState
+
+    const boundPush = this.origPushState.bind(history)
+    const boundReplace = this.origReplaceState.bind(history)
 
     const onRouteChange = () => {
       const newPath = window.location.pathname
@@ -581,17 +641,19 @@ export class Metrone {
       }
     }
 
+    this.boundPopstateHandler = onRouteChange
+
     history.pushState = function (data: any, unused: string, url?: string | URL | null) {
-      origPushState(data, unused, url)
+      boundPush(data, unused, url)
       onRouteChange()
     }
 
     history.replaceState = function (data: any, unused: string, url?: string | URL | null) {
-      origReplaceState(data, unused, url)
+      boundReplace(data, unused, url)
       onRouteChange()
     }
 
-    window.addEventListener('popstate', onRouteChange)
+    window.addEventListener('popstate', this.boundPopstateHandler)
   }
 
   private static readonly DOWNLOAD_RE = /\.(pdf|zip|docx?|xlsx?|csv|pptx?|mp[34]|mov|avi|dmg|exe|rar|7z)$/i
@@ -797,6 +859,7 @@ export class Metrone {
   }
 
   revokeConsent(): void {
+    localStorage.removeItem('metrone-consent')
     localStorage.removeItem('cookie-consent')
     localStorage.removeItem('gdpr-consent')
     localStorage.removeItem('cc-consent')
@@ -819,6 +882,22 @@ export class Metrone {
       hash = hash & hash
     }
     return Math.abs(hash).toString(36)
+  }
+
+  private static readonly UTM_KEYS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  ] as const
+
+  private extractUTMParams(): Record<string, string> {
+    const result: Record<string, string> = {}
+    try {
+      const params = new URLSearchParams(window.location.search)
+      for (const key of Metrone.UTM_KEYS) {
+        const val = params.get(key)
+        if (val) result[key] = val
+      }
+    } catch { /* SSR or restricted context */ }
+    return result
   }
 
   isMobile(): boolean {
@@ -854,6 +933,21 @@ export class Metrone {
     }
     if (this.boundDataTrackHandler) {
       document.removeEventListener('click', this.boundDataTrackHandler, true)
+    }
+    if (this.boundOnlineHandler) {
+      window.removeEventListener('online', this.boundOnlineHandler)
+    }
+    if (this.boundOfflineHandler) {
+      window.removeEventListener('offline', this.boundOfflineHandler)
+    }
+    if (this.boundPopstateHandler) {
+      window.removeEventListener('popstate', this.boundPopstateHandler)
+    }
+    if (this.origPushState) {
+      history.pushState = this.origPushState
+    }
+    if (this.origReplaceState) {
+      history.replaceState = this.origReplaceState
     }
 
     this.beaconFlush()

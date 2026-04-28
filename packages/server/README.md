@@ -19,11 +19,11 @@ const metrone = new MetroneServer({
   apiKey: 'metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 })
 
-// Track events
-await metrone.track('user_signup', { properties: { plan: 'pro' } })
+// Track events (queued for batch sending, returns void)
+metrone.track('user_signup', { properties: { plan: 'pro' } })
 
 // Track AI interactions
-await metrone.trackAICall({
+metrone.trackAICall({
   call_id: 'call_123',
   provider: 'openai',
   duration: 120,
@@ -31,10 +31,13 @@ await metrone.trackAICall({
   outcome: 'converted'
 })
 
-// Read analytics
+// Read analytics (async)
 const stats = await metrone.getStats({ days: 7 })
 const pages = await metrone.getPages({ days: 7, limit: 10 })
-const live = await metrone.getLiveVisitors()
+const live = await metrone.getLive()
+
+// Flush and shut down before process exit
+await metrone.shutdown()
 ```
 
 ## Features
