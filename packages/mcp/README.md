@@ -19,13 +19,14 @@ Add to your MCP client configuration:
       "command": "npx",
       "args": ["-y", "@metrone-io/mcp"],
       "env": {
-        "METRONE_API_KEY": "metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "METRONE_PROJECT_ID": "proj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        "METRONE_API_KEY": "metrone_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       }
     }
   }
 }
 ```
+
+Optionally set `METRONE_ENDPOINT` to override the default API base URL (`https://api.metrone.io`).
 
 ## Available Tools
 

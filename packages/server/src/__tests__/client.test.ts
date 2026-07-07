@@ -598,4 +598,122 @@ describe('MetroneServer', () => {
       expect(headers['X-Api-Key']).toBe(VALID_KEY)
     })
   })
+
+  // ── v1.1 source helpers (SPEC-01) ───────────────────────────────────
+
+  describe('v1.1 source tracking helpers', () => {
+    it('trackCampaignEvent() produces source=campaign with required keys in properties', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackCampaignEvent({
+        event_type: 'email_opened',
+        campaign_id: 'cmp_42',
+        recipient_id_hash: 'deadbeef',
+        campaign_name: 'June launch',
+      })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.event_type).toBe('email_opened')
+      expect(event.source).toBe('campaign')
+      const props = event.properties as Record<string, unknown>
+      expect(props.campaign_id).toBe('cmp_42')
+      expect(props.recipient_id_hash).toBe('deadbeef')
+      expect(props.campaign_name).toBe('June launch')
+      // event_type must NOT leak into properties (it's the top-level field)
+      expect(props.event_type).toBeUndefined()
+    })
+
+    it('trackSocialEvent() produces source=social', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackSocialEvent({ event_type: 'impression', platform: 'instagram', post_id: 'p9', value: 250 })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.source).toBe('social')
+      const props = event.properties as Record<string, unknown>
+      expect(props.platform).toBe('instagram')
+      expect(props.post_id).toBe('p9')
+      expect(props.value).toBe(250)
+    })
+
+    it('trackReviewEvent() produces source=review with rating', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackReviewEvent({ event_type: 'received', platform: 'gbp', review_id: 'r7', rating: 4 })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.event_type).toBe('received')
+      expect(event.source).toBe('review')
+      const props = event.properties as Record<string, unknown>
+      expect(props.rating).toBe(4)
+      expect(props.review_id).toBe('r7')
+    })
+
+    it('trackAdEvent() produces source=ad with metric properties', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackAdEvent({
+        event_type: 'spend_daily',
+        platform: 'google',
+        campaign_id: 'gads-1',
+        impressions: 5000,
+        clicks: 130,
+        cost_micros: 42_000_000,
+      })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.source).toBe('ad')
+      const props = event.properties as Record<string, unknown>
+      expect(props.impressions).toBe(5000)
+      expect(props.cost_micros).toBe(42_000_000)
+    })
+
+    it('trackSmsEvent() promotes agent_id to the top-level column', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackSmsEvent({ event_type: 'replied', agent_id: 'sms-agent-1', channel: 'sms' })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.source).toBe('sms')
+      expect(event.agent_id).toBe('sms-agent-1')   // top-level, not buried in properties
+      const props = event.properties as Record<string, unknown>
+      expect(props.channel).toBe('sms')
+      expect(props.agent_id).toBeUndefined()
+    })
+
+    it('trackAgentAction() writes agent fields to BOTH top-level columns and properties (decision B4)', async () => {
+      const { client, fetch } = createClient()
+
+      client.trackAgentAction({
+        agent_type: 'scheduler',
+        action_taken: 'booked_table',
+        agent_id: 'agent-77',
+        target: 'opentable',
+        outcome: 'confirmed',
+      })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      const event = body[0]
+      expect(event.event_type).toBe('booked_table')   // event_type IS the action
+      expect(event.source).toBe('agent_action')
+      expect(event.agent_type).toBe('scheduler')       // top-level (existing column)
+      expect(event.agent_id).toBe('agent-77')          // top-level (existing column)
+      const props = event.properties as Record<string, unknown>
+      expect(props.agent_type).toBe('scheduler')       // JSONB copy for the _071 RPC
+      expect(props.action_taken).toBe('booked_table')
+      expect(props.target).toBe('opentable')
+      expect(props.outcome).toBe('confirmed')
+    })
+  })
 })

@@ -36,6 +36,14 @@
 export { MetroneServer } from './client.js'
 
 export {
+  matchAiAgent,
+  captureAgentHit,
+  agentMiddleware,
+  trackAgentRequest,
+} from './agent-tracker.js'
+export type { AgentHit, AgentTrackerOptions } from './agent-tracker.js'
+
+export {
   MetroneError,
   MetroneConfigError,
   MetroneAuthError,

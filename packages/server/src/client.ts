@@ -223,6 +223,75 @@ export class MetroneServer {
     })
   }
 
+  // ─── v1.1 source helpers (SPEC-01) ─────────────────────────────────────────
+  // Thin ergonomic wrappers over track(). Required fields are typed; any
+  // extra keys flow into the JSONB `properties` payload (storage acceptance
+  // is permissive — see @metrone/schemas per-source recommended shapes).
+
+  /**
+   * Track a campaign lifecycle event (email / SMS sends, opens, clicks…).
+   * Recommended event_type values: email_sent | email_delivered |
+   * email_opened | email_clicked | email_bounced | email_unsubscribed |
+   * sms_sent | sms_delivered | sms_replied | sms_opt_out
+   */
+  trackCampaignEvent(data: { event_type: string; campaign_id: string; recipient_id_hash: string } & Record<string, unknown>): void {
+    const { event_type, ...properties } = data
+    this.track(event_type, { source: 'campaign', properties })
+  }
+
+  /**
+   * Track a social media event. Recommended event_type values:
+   * post_published | impression | engagement | click | share
+   */
+  trackSocialEvent(data: { event_type: string; platform: string; post_id: string } & Record<string, unknown>): void {
+    const { event_type, ...properties } = data
+    this.track(event_type, { source: 'social', properties })
+  }
+
+  /**
+   * Track a review event. Recommended event_type values: received | responded
+   */
+  trackReviewEvent(data: { event_type: string; platform: string; review_id: string; rating: number } & Record<string, unknown>): void {
+    const { event_type, ...properties } = data
+    this.track(event_type, { source: 'review', properties })
+  }
+
+  /**
+   * Track a paid-ad metrics event. Recommended event_type values:
+   * impression | click | spend_daily | conversion
+   */
+  trackAdEvent(data: { event_type: string; platform: string; campaign_id: string } & Record<string, unknown>): void {
+    const { event_type, ...properties } = data
+    this.track(event_type, { source: 'ad', properties })
+  }
+
+  /**
+   * Track an SMS conversation event. Recommended event_type values:
+   * received | replied. agent_id is promoted to the top-level column so
+   * existing per-agent dashboard breakdowns keep working.
+   */
+  trackSmsEvent(data: { event_type: string; agent_id: string } & Record<string, unknown>): void {
+    const { event_type, agent_id, ...properties } = data
+    this.track(event_type, { source: 'sms', agent_id: agent_id as string, properties })
+  }
+
+  /**
+   * Track an autonomous agent action (audit-log style). event_type is the
+   * action itself (free-form vocabulary). agent_type / agent_id are written
+   * BOTH to the top-level columns (for existing dashboard breakdowns) AND
+   * into properties (for the JSONB-first get_agent_activity_feed RPC) —
+   * decision B4 of the v1.1 build.
+   */
+  trackAgentAction(data: { agent_type: string; action_taken: string; agent_id?: string; target?: string; outcome?: string } & Record<string, unknown>): void {
+    const { agent_type, action_taken, agent_id, ...rest } = data
+    this.track(action_taken, {
+      source: 'agent_action',
+      agent_id: agent_id as string | undefined,
+      agent_type: agent_type as string,
+      properties: { agent_type, action_taken, ...rest },
+    })
+  }
+
   // ─── Read API ──────────────────────────────────────────────────────────────
 
   /**

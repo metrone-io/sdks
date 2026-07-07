@@ -5,7 +5,14 @@
  * validation on the ingestion side without translation.
  */
 
-export type EventSource = 'web' | 'voice' | 'chat' | 'assistant' | 'sms' | 'listing'
+/**
+ * Canonical source values. Mirrors the analytics_events.source CHECK
+ * constraint (expanded in v1.1 by migration _069).
+ * v1.1 SPEC-01 adds: campaign, social, review, ad, agent_action.
+ */
+export type EventSource =
+  | 'web' | 'voice' | 'chat' | 'assistant' | 'sms' | 'listing'
+  | 'campaign' | 'social' | 'review' | 'ad' | 'agent_action'
 
 export interface MetroneServerConfig {
   /** API key (required). Format: metrone_live_* or metrone_test_* */
@@ -81,6 +88,14 @@ export interface EventPayload {
 
   /** Idempotency key to prevent duplicate processing */
   idempotency_key?: string
+
+  /**
+   * Original visitor User-Agent, for middleware/edge senders forwarding
+   * traffic they observed. The worker parses it for device and visitor
+   * classification (human vs ai_agent vs bot) and then discards it — the
+   * raw UA is never stored. Without it, the ingest request's own UA is used.
+   */
+  user_agent?: string
 
   properties?: Record<string, unknown>
   timestamp?: string

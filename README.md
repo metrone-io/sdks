@@ -10,6 +10,7 @@ Official SDKs for [Metrone](https://metrone.io) — privacy-first analytics for 
 | [`@metrone-io/react`](packages/react) | [![npm](https://img.shields.io/npm/v/@metrone-io/react)](https://npmjs.com/package/@metrone-io/react) | React bindings — Provider, hooks, route tracking |
 | [`@metrone-io/server`](packages/server) | [![npm](https://img.shields.io/npm/v/@metrone-io/server)](https://npmjs.com/package/@metrone-io/server) | Server SDK — Node, Deno, Bun, edge runtimes |
 | [`@metrone-io/mcp`](packages/mcp) | [![npm](https://img.shields.io/npm/v/@metrone-io/mcp)](https://npmjs.com/package/@metrone-io/mcp) | MCP server — analytics for Claude, GPT, and AI agents |
+| [`agent-edge`](packages/agent-edge) | — (deploy template) | Cloudflare Worker that captures AI agent visits (GPTBot, ChatGPT, Perplexity, …) on your zone |
 
 ## Quick Start
 
@@ -86,6 +87,27 @@ await metrone.trackAICall({
   outcome: 'converted'
 })
 ```
+
+### AI agent capture
+
+AI agents (GPTBot, ChatGPT-User, PerplexityBot, ClaudeBot, …) fetch pages
+without executing JavaScript, so the browser SDK never sees them. Capture
+them where the request is served:
+
+```javascript
+// Express / Connect — one line
+import { MetroneServer, agentMiddleware } from '@metrone-io/server'
+
+const metrone = new MetroneServer({ apiKey: process.env.METRONE_API_KEY })
+app.use(agentMiddleware(metrone))
+
+// Fetch runtimes (Hono, Next.js middleware, Bun, Deno):
+// trackAgentRequest(metrone, request)
+```
+
+On Cloudflare? Deploy the zero-code-change [`agent-edge`](packages/agent-edge)
+Worker on your zone instead. Either way, agent visits appear on the
+[AI Traffic dashboard](https://metrone.io/docs#agent-capture).
 
 ### MCP (AI Agents)
 

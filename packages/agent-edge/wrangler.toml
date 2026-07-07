@@ -1,0 +1,32 @@
+# Metrone AI Agent Edge Tracker — customer-deployable template.
+#
+# This Worker runs on YOUR (the customer's) Cloudflare zone, not Metrone's.
+# It transparently passes every request through to your origin and, only when
+# the visitor is a known AI agent (GPTBot, ChatGPT-User, PerplexityBot, …),
+# forwards a tracking event to Metrone in the background. Human traffic is
+# never sent from here — the browser tracker (m.js) handles that.
+#
+# Deploy:
+#   1. npx wrangler secret put METRONE_API_KEY   (your metrone_live_… key)
+#   2. Uncomment and edit the route below for your domain
+#   3. npx wrangler deploy
+#
+# The Worker is strictly fail-open: if Metrone is unreachable or the API key
+# is missing, your site serves normally and nothing is tracked.
+
+name               = "metrone-agent-tracker"
+main               = "src/index.ts"
+compatibility_date = "2024-01-15"
+
+# ── Your zone route — REQUIRED, edit for your domain ─────────────────────────
+# routes = [
+#   { pattern = "example.com/*", zone_name = "example.com" },
+#   { pattern = "www.example.com/*", zone_name = "example.com" },
+# ]
+
+[vars]
+# Metrone ingestion endpoint. Leave as-is unless you use a custom CNAME.
+METRONE_ENDPOINT = "https://api.metrone.io"
+
+# Secrets (set via `npx wrangler secret put <KEY>`):
+#   METRONE_API_KEY — your project API key from Dashboard → Settings → API Keys

@@ -1,6 +1,26 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+/**
+ * index.ts — Metrone MCP server, stdio transport (@metrone-io/mcp binary)
+ *
+ * v1.1 SPEC-06A: tool definitions moved to ./tools.ts so the worker's
+ * /mcp HTTP transport shares the same registry. This entry point is now a
+ * thin stdio adapter: it wires an HTTP executor (fetch against
+ * METRONE_ENDPOINT with the env API key) into the shared dispatch().
+ *
+ * Externally identical to v1.0.1: same env contract (METRONE_API_KEY
+ * required, METRONE_ENDPOINT optional), same 7 tools, same response shape
+ * (pretty-printed JSON text content), same 30s request timeout, same
+ * early-exit when the key is missing.
+ *
+ * Implementation note: uses the SDK's low-level Server (setRequestHandler)
+ * instead of McpServer.tool() because the shared registry carries plain
+ * JSON Schema rather than zod shapes — the wire protocol wants JSON Schema
+ * anyway, and keeping zod out of tools.ts keeps the worker bundle clean.
+ */
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { z } from 'zod'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { dispatch, listTools, type ToolApiRequest, type ToolExecutor } from './tools.js'
 
 const API_KEY = process.env.METRONE_API_KEY
 const ENDPOINT = process.env.METRONE_ENDPOINT ?? 'https://api.metrone.io'
@@ -10,155 +30,75 @@ if (!API_KEY) {
   process.exit(1)
 }
 
-async function apiGet(path: string, params?: Record<string, string>): Promise<unknown> {
-  const url = new URL(path, ENDPOINT)
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== '') url.searchParams.set(k, v)
+const REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * HTTP executor for the stdio transport. Mirrors the v1.0.1 apiGet/apiPost
+ * behavior: X-Api-Key header auth, 30s abort, api_key injected into POST
+ * bodies (the authenticated write endpoint ignores it in favour of the
+ * header key, but the field is kept for exact backward compatibility),
+ * empty-string query params skipped.
+ */
+const httpExecutor: ToolExecutor = async (req: ToolApiRequest) => {
+  const url = new URL(req.path, ENDPOINT)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    let res: Response
+    if (req.method === 'GET') {
+      for (const [k, v] of Object.entries(req.query)) {
+        if (v !== undefined && v !== '') url.searchParams.set(k, v)
+      }
+      res = await fetch(url.toString(), {
+        headers: { 'X-Api-Key': API_KEY! },
+        signal: controller.signal,
+      })
+    } else {
+      res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'X-Api-Key': API_KEY!, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: API_KEY, ...req.body }),
+        signal: controller.signal,
+      })
     }
+
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Metrone API error ${res.status}: ${body}`)
+    }
+    return res.json()
+  } finally {
+    clearTimeout(timer)
   }
-  const res = await fetch(url.toString(), {
-    headers: { 'X-Api-Key': API_KEY! },
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Metrone API error ${res.status}: ${body}`)
-  }
-  return res.json()
 }
 
-async function apiPost(path: string, body: unknown): Promise<unknown> {
-  const url = new URL(path, ENDPOINT)
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'X-Api-Key': API_KEY!, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Metrone API error ${res.status}: ${text}`)
+const server = new Server(
+  { name: 'metrone', version: '1.0.1' },
+  { capabilities: { tools: {} } },
+)
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: listTools(),
+}))
+
+server.setRequestHandler(CallToolRequestSchema, async request => {
+  const { name, arguments: args } = request.params
+  try {
+    const data = await dispatch(name, (args ?? {}) as Record<string, unknown>, httpExecutor)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+    }
+  } catch (err) {
+    // Tool failures surface as isError results (not protocol errors) so the
+    // calling agent can read the message — same behavior McpServer.tool()
+    // provided in v1.0.1.
+    return {
+      content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
+      isError: true,
+    }
   }
-  return res.json()
-}
-
-function textResult(data: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
-}
-
-const server = new McpServer({ name: 'metrone', version: '1.0.0' })
-
-server.tool(
-  'metrone_get_stats',
-  {
-    days: z.number().optional(),
-    from: z.string().optional(),
-    to: z.string().optional(),
-  },
-  async ({ days, from, to }) => {
-    const params: Record<string, string> = {}
-    if (days !== undefined) params.days = String(days)
-    if (from) params.from = from
-    if (to) params.to = to
-    return textResult(await apiGet('/v1/api/stats', params))
-  },
-)
-
-server.tool(
-  'metrone_get_events',
-  {
-    days: z.number().optional(),
-    limit: z.number().optional(),
-    event_type: z.string().optional(),
-    source: z.string().optional(),
-  },
-  async ({ days, limit, event_type, source }) => {
-    const params: Record<string, string> = {}
-    if (days !== undefined) params.days = String(days)
-    if (limit !== undefined) params.limit = String(limit)
-    if (event_type) params.event_type = event_type
-    if (source) params.source = source
-    return textResult(await apiGet('/v1/api/events', params))
-  },
-)
-
-server.tool(
-  'metrone_get_pages',
-  {
-    days: z.number().optional(),
-    limit: z.number().optional(),
-  },
-  async ({ days, limit }) => {
-    const params: Record<string, string> = {}
-    if (days !== undefined) params.days = String(days)
-    if (limit !== undefined) params.limit = String(limit)
-    return textResult(await apiGet('/v1/api/pages', params))
-  },
-)
-
-server.tool(
-  'metrone_get_sources',
-  { days: z.number().optional() },
-  async ({ days }) => {
-    const params: Record<string, string> = {}
-    if (days !== undefined) params.days = String(days)
-    return textResult(await apiGet('/v1/api/sources', params))
-  },
-)
-
-server.tool(
-  'metrone_get_live',
-  {},
-  async (_args) => textResult(await apiGet('/v1/api/live')),
-)
-
-server.tool(
-  'metrone_track_event',
-  {
-    event_type: z.string(),
-    source: z.string().optional(),
-    event_name: z.string().optional(),
-    page_url: z.string().optional(),
-    properties: z.record(z.string(), z.any()).optional(),
-  },
-  async ({ event_type, source, event_name, page_url, properties }) => {
-    const payload: Record<string, unknown> = {
-      api_key: API_KEY,
-      event_type,
-      source: source ?? 'assistant',
-    }
-    if (event_name) payload.event_name = event_name
-    if (page_url) payload.page_url = page_url
-    if (properties) payload.properties = properties
-    return textResult(await apiPost('/v1/api/events', payload))
-  },
-)
-
-server.tool(
-  'metrone_track_ai_call',
-  {
-    call_id: z.string(),
-    provider: z.string(),
-    duration: z.number().optional(),
-    intent: z.string().optional(),
-    outcome: z.string().optional(),
-    properties: z.record(z.string(), z.any()).optional(),
-  },
-  async ({ call_id, provider, duration, intent, outcome, properties }) => {
-    const payload: Record<string, unknown> = {
-      api_key: API_KEY,
-      event_type: 'ai_call',
-      source: 'voice',
-      ai_call_id: call_id,
-      ai_provider: provider,
-    }
-    if (duration !== undefined) payload.ai_duration_sec = duration
-    if (intent) payload.ai_intent = intent
-    if (properties || outcome) {
-      payload.properties = { ...properties, ...(outcome && { outcome }) }
-    }
-    return textResult(await apiPost('/v1/api/events', payload))
-  },
-)
+})
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
