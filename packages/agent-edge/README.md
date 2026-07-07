@@ -30,12 +30,14 @@ AI agent ──▶ your zone (this Worker) ──▶ your origin ──▶ respo
 
 ## Deploy (5 minutes)
 
-1. Clone the public SDK repo and install wrangler:
+1. Scaffold from the template (or clone the repo):
 
    ```sh
-   git clone https://github.com/metrone-io/sdks
-   cd sdks/packages/agent-edge
-   npm install
+   npm create cloudflare@latest metrone-agent-tracker -- \
+     --template github:metrone-io/sdks/packages/agent-edge
+   cd metrone-agent-tracker
+
+   # or: git clone https://github.com/metrone-io/sdks && cd sdks/packages/agent-edge && npm install
    ```
 
 2. Set your Metrone API key (Dashboard → Settings → API Keys):
