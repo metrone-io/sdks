@@ -59,6 +59,15 @@ function MyComponent() {
 | `trackAISession(data)` | Track AI session lifecycle |
 | `flush()` | Flush pending events |
 
+## Human vs AI traffic
+
+Events are classified at ingest as human or AI automatically. Visitors
+arriving from ChatGPT, Gemini, Perplexity, Claude, and other AI platforms
+are grouped under canonical AI sources on the Metrone **AI Traffic**
+dashboard — no extra code in your React app. To also capture AI agents
+that fetch your pages without running JavaScript (GPTBot, ChatGPT-User,
+PerplexityBot, …), add [server-side or edge capture](https://metrone.io/docs#agent-capture).
+
 ## Documentation
 
 [metrone.io/docs](https://metrone.io/docs)

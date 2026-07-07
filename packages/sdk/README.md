@@ -53,6 +53,21 @@ analytics.trackAISession({ session_id: 'sess_456', action: 'end', duration: 120 
 <a href="/pricing" data-track="nav_pricing">Pricing</a>
 ```
 
+### Human vs AI traffic
+
+Every event this SDK sends is classified at ingest as human or AI, with no
+configuration needed:
+
+- **Humans clicking through from AI platforms** (ChatGPT, Gemini,
+  Perplexity, Claude, Copilot, …) are detected automatically from the
+  referrer/UTM and grouped under one canonical AI source on the Metrone
+  **AI Traffic** dashboard.
+- **AI agents themselves** (GPTBot, ChatGPT-User, PerplexityBot, …) never
+  execute JavaScript, so no browser SDK can see them. Capture those with
+  [`@metrone-io/server`'s agent middleware or the `agent-edge` Cloudflare
+  Worker](https://metrone.io/docs#agent-capture) — this SDK keeps handling
+  your human visitors.
+
 ## Features
 
 - No HTTP cookies — uses sessionStorage for sessions, no cross-site tracking
@@ -64,6 +79,7 @@ analytics.trackAISession({ session_id: 'sess_456', action: 'end', duration: 120 
 - Retry logic with exponential backoff
 - Idempotency keys to prevent duplicate events
 - DNT and consent mode support
+- Automatic human vs AI traffic classification at ingest (AI Traffic dashboard)
 - CJS + ESM + IIFE builds
 
 ## Documentation
