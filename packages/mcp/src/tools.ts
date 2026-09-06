@@ -172,7 +172,8 @@ export const TOOLS: ToolDescriptor[] = [
         source: str(args.source) ?? 'assistant',
       }
       if (str(args.event_name)) body.event_name = args.event_name
-      if (str(args.page_url)) body.page_url = sanitizePublicUrl(args.page_url)
+      const pageUrl = str(args.page_url)
+      if (pageUrl) body.page_url = sanitizePublicUrl(pageUrl)
       if (args.properties && typeof args.properties === 'object') {
         const props = { ...(args.properties as Record<string, unknown>) }
         if (typeof props.url === 'string') props.url = sanitizePublicUrl(props.url)
