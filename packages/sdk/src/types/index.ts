@@ -32,6 +32,8 @@ export interface AnalyticsConfig {
   maxQueueSize?: number
   /** Respect Do Not Track header (default: false) */
   respectDoNotTrack?: boolean
+  /** Honor Global Privacy Control / GPC (default: true) */
+  respectGlobalPrivacyControl?: boolean
   /** Anonymize IP addresses (default: true) */
   anonymizeIP?: boolean
   /** Cookie consent requirement (default: 'optional') */

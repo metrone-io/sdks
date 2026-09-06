@@ -31,6 +31,25 @@ function isPermanentError(err: unknown): err is PermanentRequestError {
   return !!err && typeof err === 'object' && (err as { permanent?: boolean }).permanent === true
 }
 
+/**
+ * Drop query strings / fragments from URLs, and omit the local-part of
+ * mailto: hrefs. Keep in sync with worker `lib/url-redact.ts` and m.js `clean()`.
+ */
+export function sanitizePublicUrl(url: string): string {
+  if (!url) return url
+  if (url.startsWith('mailto:')) {
+    const rest = url.slice(7).split('?')[0].split('#')[0]
+    const at = rest.lastIndexOf('@')
+    return at >= 0 ? `mailto:@${rest.slice(at + 1)}` : 'mailto:'
+  }
+  const q = url.indexOf('?')
+  const h = url.indexOf('#')
+  let cut = url.length
+  if (q >= 0) cut = q
+  if (h >= 0 && h < cut) cut = h
+  return url.slice(0, cut)
+}
+
 export class Metrone {
   private config: AnalyticsConfig
   private sessionId: string
@@ -68,6 +87,7 @@ export class Metrone {
       offlineQueue: true,
       maxQueueSize: 100,
       respectDoNotTrack: false,
+      respectGlobalPrivacyControl: true,
       anonymizeIP: true,
       cookieConsent: 'optional',
       ...resolved
@@ -90,6 +110,11 @@ export class Metrone {
 
     this.sessionId = this.restoreOrCreateSession()
     this.isInitialized = true
+
+    if (this.config.respectGlobalPrivacyControl !== false && this.isGlobalPrivacyControlEnabled()) {
+      console.warn('[Metrone] Global Privacy Control detected — analytics disabled. Set respectGlobalPrivacyControl: false to override.')
+      return
+    }
 
     if (this.config.respectDoNotTrack && this.isDoNotTrackEnabled()) {
       console.warn('[Metrone] Do Not Track detected — analytics disabled. Set respectDoNotTrack: false to override.')
@@ -168,10 +193,10 @@ export class Metrone {
     const utms = this.extractUTMParams()
 
     this.track('pageview', {
-      page_url:   url || window.location.href,
+      page_url:   sanitizePublicUrl(url || window.location.href),
       page_path:  window.location.pathname,
       page_title: title || document.title,
-      referrer:   document.referrer,
+      referrer:   document.referrer ? sanitizePublicUrl(document.referrer) : document.referrer,
       source:     'web',
       ...utms,
       ...metadata
@@ -196,15 +221,21 @@ export class Metrone {
     const mergedProps = properties && typeof properties === 'object'
       ? { ...(properties as Record<string, unknown>), ...rest }
       : rest
+    if (typeof mergedProps.url === 'string') {
+      mergedProps.url = sanitizePublicUrl(mergedProps.url)
+    }
     const finalProps = Object.keys(mergedProps).length > 0 ? mergedProps : undefined
 
     const eventData = {
       event_type:      eventName,
       event_name:      event_name as string | undefined,
-      page_url:        (dataPageUrl as string) || window.location.href,
-      page_path:       (page_path as string) || window.location.pathname,
+      page_url:        sanitizePublicUrl((dataPageUrl as string) || window.location.href),
+      page_path:       ((page_path as string) || window.location.pathname).split('?')[0].split('#')[0],
       page_title:      (page_title as string) || (typeof document !== 'undefined' ? document.title : undefined),
-      referrer:        (dataReferrer as string) || (typeof document !== 'undefined' ? document.referrer : undefined),
+      referrer:        (() => {
+        const raw = (dataReferrer as string) || (typeof document !== 'undefined' ? document.referrer : undefined)
+        return raw ? sanitizePublicUrl(raw) : raw
+      })(),
       session_id:      this.sessionId,
       sdk_version:     this.version,
       timestamp:       new Date().toISOString(),
@@ -531,7 +562,17 @@ export class Metrone {
     try {
       const payload = JSON.stringify(batch)
       const sent = navigator.sendBeacon(this.config.batchEndpoint!, payload)
-      if (!sent && this.config.debug) {
+      if (sent) return
+      if (typeof fetch === 'function') {
+        fetch(this.config.batchEndpoint!, {
+          method: 'POST',
+          body: payload,
+          keepalive: true,
+          headers: { 'Content-Type': 'text/plain' },
+        }).catch(() => { /* page is unloading */ })
+        return
+      }
+      if (this.config.debug) {
         console.warn('[Metrone] sendBeacon failed, events may be lost')
       }
     } catch {
@@ -678,7 +719,7 @@ export class Metrone {
       const isMail = href.startsWith('mailto:')
       let isExt = false
       try { isExt = !!a.hostname && a.hostname !== location.hostname } catch { /* cross-origin */ }
-      const isDl = Metrone.DOWNLOAD_RE.test(href)
+      const isDl = Metrone.DOWNLOAD_RE.test(sanitizePublicUrl(href))
 
       if (!isTel && !isMail && !isExt && !isDl) return
 
@@ -687,7 +728,7 @@ export class Metrone {
 
       this.track('click', {
         event_name: clickType,
-        properties: { url: href, text, click_type: clickType },
+        properties: { url: sanitizePublicUrl(href), text, click_type: clickType },
       })
     }
 
@@ -705,7 +746,7 @@ export class Metrone {
 
       this.track('click', {
         event_name: name,
-        properties: { click_type: 'tracked', url: (el as HTMLAnchorElement).href || null, text },
+        properties: { click_type: 'tracked', url: (el as HTMLAnchorElement).href ? sanitizePublicUrl((el as HTMLAnchorElement).href) : null, text },
       })
     }
 
@@ -825,6 +866,11 @@ export class Metrone {
   }
 
   private generateSessionId(): string {
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return `sess_${crypto.randomUUID().replace(/-/g, '')}`
+      }
+    } catch { /* old browsers */ }
     const timestamp = Date.now().toString(36)
     const random = Math.random().toString(36).substring(2, 15)
     return `sess_${timestamp}_${random}`
@@ -838,6 +884,10 @@ export class Metrone {
     return navigator.doNotTrack === '1' ||
            navigator.doNotTrack === 'yes' ||
            (window as any).doNotTrack === '1'
+  }
+
+  private isGlobalPrivacyControlEnabled(): boolean {
+    return (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true
   }
 
   hasConsent(): boolean {
