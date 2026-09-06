@@ -158,6 +158,19 @@ npm run build
 npm test
 ```
 
+## Publishing
+
+Push a version bump on `main` (or run **Actions → Publish → Run workflow**). GitHub Actions publishes any package whose `package.json` version is not yet on npm, using [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers) — no OTP and no long-lived token.
+
+One-time setup on each package at npmjs.com → **Settings → Trusted Publisher**:
+
+| Field | Value |
+|-------|-------|
+| Organization | `metrone-io` |
+| Repository | `sdks` |
+| Workflow filename | `publish.yml` |
+| Permissions | allow `npm publish` |
+
 ## License
 
 [MIT](LICENSE)

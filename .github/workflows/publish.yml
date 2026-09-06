@@ -1,0 +1,42 @@
+# Publishes any workspace package whose package.json version is not yet on npm.
+# Auth is npm Trusted Publishing (OIDC) — no OTP, no long-lived token.
+#
+# One-time setup on npmjs.com for each package (Settings → Trusted Publisher):
+#   Organization: metrone-io
+#   Repository:   sdks
+#   Workflow:     publish.yml
+#   Allow:        npm publish
+name: Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sdk/package.json'
+      - 'packages/react/package.json'
+      - 'packages/server/package.json'
+      - 'packages/mcp/package.json'
+      - '.github/workflows/publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          # Do not set registry-url: setup-node would write an empty
+          # _authToken and npm would skip the OIDC exchange.
+
+      - name: Install
+        run: npm ci
+
+      - name: Publish changed packages
+        run: bash scripts/publish-changed.sh
