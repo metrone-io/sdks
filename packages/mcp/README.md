@@ -37,7 +37,7 @@ Optionally set `METRONE_ENDPOINT` to override the default API base URL (`https:/
 | `metrone_get_pages` | Top pages by views |
 | `metrone_get_sources` | Traffic sources breakdown |
 | `metrone_get_live` | Current live visitors |
-| `metrone_track_event` | Track a custom event |
+| `metrone_track_event` | Track a custom event (query strings and `mailto:` local-parts are stripped) |
 | `metrone_track_ai_call` | Track an AI call or chat session |
 
 ## Example

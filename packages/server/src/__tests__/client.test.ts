@@ -471,6 +471,18 @@ describe('MetroneServer', () => {
       expect(body[0].source).toBe('web')
     })
 
+    it('strips query strings from page_url and mailto local-parts in properties.url', async () => {
+      const { client, fetch } = createClient()
+
+      client.pageview('https://example.com/dl?e=1&s=sig', 'Download')
+      client.track('click', { properties: { url: 'mailto:jane@staff.example?subject=Hi' } })
+      await client.flush()
+
+      const body = JSON.parse(fetch.mock.calls[0][1]?.body as string) as Record<string, unknown>[]
+      expect(body[0].page_url).toBe('https://example.com/dl')
+      expect((body[1].properties as Record<string, unknown>).url).toBe('mailto:@staff.example')
+    })
+
     it('conversion() sets correct fields', async () => {
       const { client, fetch } = createClient()
 

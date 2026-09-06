@@ -35,6 +35,7 @@ import type {
   LiveResponse,
   ApiResponse,
 } from './types.js'
+import { sanitizePagePath, sanitizePublicUrl } from './url-redact.js'
 import {
   MetroneConfigError,
   MetroneValidationError,
@@ -110,7 +111,7 @@ export class MetroneServer {
       api_key: this.config.apiKey,
       event_type: eventType,
       timestamp: new Date().toISOString(),
-      ...data,
+      ...sanitizeEventUrls(data),
     }
 
     if (this.config.batchSize <= 0) {
@@ -487,4 +488,16 @@ export class MetroneServer {
     if (params?.to) result.to = params.to instanceof Date ? params.to.toISOString() : params.to
     return result
   }
+}
+
+function sanitizeEventUrls(data?: Partial<EventPayload>): Partial<EventPayload> {
+  if (!data) return {}
+  const next = { ...data }
+  if (typeof next.page_url === 'string') next.page_url = sanitizePublicUrl(next.page_url)
+  if (typeof next.page_path === 'string') next.page_path = sanitizePagePath(next.page_path)
+  if (typeof next.referrer === 'string') next.referrer = sanitizePublicUrl(next.referrer)
+  if (next.properties && typeof next.properties === 'object' && typeof next.properties.url === 'string') {
+    next.properties = { ...next.properties, url: sanitizePublicUrl(next.properties.url) }
+  }
+  return next
 }

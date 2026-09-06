@@ -84,6 +84,7 @@ On Cloudflare? Use the zero-code-change [edge Worker template](https://metrone.i
 - AI call and chat session tracking
 - Read API for stats, pages, sources, events
 - Live visitor count
+- Query strings stripped from page and click URLs; `mailto:` local-parts omitted
 - Works on Node.js 18+, Deno, Bun, Cloudflare Workers
 
 ## Documentation

@@ -56,7 +56,7 @@ describe('captureAgentHit', () => {
     expect(agent).toBe('GPTBot')
     const payload = await sentPayload(fetch)
     expect(payload.event_type).toBe('pageview')
-    expect(payload.page_url).toBe('https://example.com/pricing?ref=1')
+    expect(payload.page_url).toBe('https://example.com/pricing')
     expect(payload.page_path).toBe('/pricing')
     expect(payload.user_agent).toBe(GPTBOT_UA)
     expect(payload.properties).toEqual({ agent_capture: 'server' })

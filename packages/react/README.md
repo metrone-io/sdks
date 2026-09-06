@@ -44,7 +44,7 @@ function MyComponent() {
 - **`useMetrone()`** — Hook returning all tracking methods
 - **`withMetrone(Component)`** — HOC injecting Metrone props
 - **Automatic route tracking** — SPA pageviews handled by the SDK (`autoTrackSPA: true`)
-- **Automatic click tracking** — Outbound links, tel:, mailto:, downloads, and `data-track` elements
+- **Automatic click tracking** — Outbound links, tel:, mailto:, downloads, and `data-track` elements. Requires `@metrone-io/sdk` ≥ 1.4.4 so query strings and `mailto:` local-parts are stripped, and Global Privacy Control is honored.
 
 ### Available tracking methods from `useMetrone()`
 

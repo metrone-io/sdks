@@ -172,8 +172,12 @@ export const TOOLS: ToolDescriptor[] = [
         source: str(args.source) ?? 'assistant',
       }
       if (str(args.event_name)) body.event_name = args.event_name
-      if (str(args.page_url)) body.page_url = args.page_url
-      if (args.properties && typeof args.properties === 'object') body.properties = args.properties
+      if (str(args.page_url)) body.page_url = sanitizePublicUrl(args.page_url)
+      if (args.properties && typeof args.properties === 'object') {
+        const props = { ...(args.properties as Record<string, unknown>) }
+        if (typeof props.url === 'string') props.url = sanitizePublicUrl(props.url)
+        body.properties = props
+      }
       return { method: 'POST', path: '/v1/api/events', body }
     },
   },
@@ -265,4 +269,19 @@ export async function dispatch(
   }
   validateArgs(tool, args)
   return executor(tool.buildRequest(args))
+}
+
+function sanitizePublicUrl(url: string): string {
+  if (!url) return url
+  if (url.startsWith('mailto:')) {
+    const rest = url.slice(7).split('?')[0].split('#')[0]
+    const at = rest.lastIndexOf('@')
+    return at >= 0 ? `mailto:@${rest.slice(at + 1)}` : 'mailto:'
+  }
+  const q = url.indexOf('?')
+  const h = url.indexOf('#')
+  let cut = url.length
+  if (q >= 0) cut = q
+  if (h >= 0 && h < cut) cut = h
+  return url.slice(0, cut)
 }
