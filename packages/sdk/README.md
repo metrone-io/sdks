@@ -2,7 +2,7 @@
 
 Privacy-first browser analytics SDK for [Metrone](https://metrone.io).
 
-Lightweight tracking with automatic pageviews, custom events, conversions, AI interaction tracking, batching, retries, and DNT/consent support. No HTTP cookies — uses `sessionStorage` for session continuity and optionally reads `localStorage` for consent state.
+Lightweight tracking with automatic pageviews, custom events, conversions, AI interaction tracking, batching, retries, and GPC/DNT/consent support. No HTTP cookies — uses `sessionStorage` for session continuity and optionally reads `localStorage` for consent state. Query strings and `mailto:` local-parts are stripped before events leave the browser.
 
 ## Install
 
@@ -78,6 +78,8 @@ configuration needed:
 - Event batching with sendBeacon flush on page unload
 - Retry logic with exponential backoff
 - Idempotency keys to prevent duplicate events
+- Global Privacy Control honored by default; DNT is opt-in via `respectDoNotTrack`
+- Query strings stripped from page and click URLs; `mailto:` local-parts omitted
 - DNT and consent mode support
 - Automatic human vs AI traffic classification at ingest (AI Traffic dashboard)
 - CJS + ESM + IIFE builds

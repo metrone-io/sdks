@@ -57,7 +57,7 @@ export class Metrone {
   private trackingActive: boolean = false
   private eventQueue: any[] = []
   private isOnline: boolean = true
-  private version: string = '1.4.3'
+  private version: string = '1.4.4'
   private updateCheckInterval: number | null = null
   private flushTimerId: number | null = null
   private boundVisibilityHandler: (() => void) | null = null
