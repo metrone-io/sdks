@@ -11,7 +11,6 @@ Official SDKs for [Metrone](https://metrone.io) — privacy-first analytics for 
 | [`@metrone-io/server`](packages/server) | [![npm](https://img.shields.io/npm/v/@metrone-io/server)](https://npmjs.com/package/@metrone-io/server) | Server SDK — Node, Deno, Bun, edge runtimes |
 | [`@metrone-io/mcp`](packages/mcp) | [![npm](https://img.shields.io/npm/v/@metrone-io/mcp)](https://npmjs.com/package/@metrone-io/mcp) | MCP server — analytics for Claude, GPT, and AI agents |
 | [`agent-edge`](packages/agent-edge) | — (deploy template) | Cloudflare Worker that captures AI agent visits (GPTBot, ChatGPT, Perplexity, …) on your zone |
-| [`metrone`](packages/metrone) | [![npm](https://img.shields.io/npm/v/metrone)](https://npmjs.com/package/metrone) | CLI (`npx metrone`) — placeholder until the CLI ships; see [metrone.io/install.md](https://metrone.io/install.md) |
 
 ## Quick Start
 
