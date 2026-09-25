@@ -1,6 +1,7 @@
-# @metrone-io/sdk
+# Metrone Browser SDK
 
-Privacy-first browser analytics SDK for [Metrone](https://metrone.io).
+The official Metrone browser SDK. Install it from npm to add
+privacy-first web analytics and AI interaction tracking to any site or app.
 
 Lightweight tracking with automatic pageviews, custom events, conversions, AI interaction tracking, batching, retries, and GPC/DNT/consent support. No HTTP cookies — uses `sessionStorage` for session continuity and optionally reads `localStorage` for consent state. Query strings and `mailto:` local-parts are stripped before events leave the browser.
 
